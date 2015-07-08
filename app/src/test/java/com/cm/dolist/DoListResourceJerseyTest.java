@@ -1,17 +1,18 @@
 package com.cm.dolist;
 
-import io.dropwizard.testing.junit.ResourceTestRule;
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
+import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.test.JerseyTest;
+import org.glassfish.jersey.test.TestProperties;
 import org.glassfish.jersey.test.jetty.JettyTestContainerFactory;
+import org.glassfish.jersey.test.spi.TestContainerFactory;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.runners.MockitoJUnitRunner;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.client.Entity;
+import javax.ws.rs.core.Application;
 import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
@@ -40,29 +41,19 @@ import static org.mockito.Mockito.when;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@RunWith(MockitoJUnitRunner.class)
-public class DoListResourceTest {
-    private static final String TEST_USER = "testuser";
+public class DoListResourceJerseyTest extends JerseyTest {
+    private static final String TEST_USER = "testUser";
     public static InMemoryDoListService service = new InMemoryDoListService();
-    @ClassRule
-    public static final ResourceTestRule resources = ResourceTestRule.builder()
-            .setTestContainerFactory(new JettyTestContainerFactory())
-            .addProvider(new AbstractBinder() {
-                @Override
-                protected void configure() {
-                    final HttpServletRequest request = mock(HttpServletRequest.class);
-                    when(request.getRemoteUser()).thenReturn(TEST_USER);
-                    bind(service).to(DoListService.class);
-                    bind(request).to(HttpServletRequest.class);
-                }
-            })
-            .addResource(new DoListResource(service))
-            .build();
+
+    private final HttpServletRequest request = mock(HttpServletRequest.class);
     private Todo todo1;
     private Todo todo2;
 
     @Before
     public void beforeTest() {
+
+        when(request.getRemoteUser()).thenReturn(TEST_USER);
+
         service.reset();
         todo1 = new Todo();
         todo1.setDetails("Todo 1");
@@ -78,6 +69,26 @@ public class DoListResourceTest {
         todo2 = service.save(todo2);
     }
 
+    @Override
+    protected TestContainerFactory getTestContainerFactory() {
+        return new JettyTestContainerFactory();
+    }
+
+    @Override
+    protected Application configure() {
+        forceSet(TestProperties.CONTAINER_PORT, "0");
+        enable(TestProperties.LOG_TRAFFIC);
+        ResourceConfig cfg = new ResourceConfig(DoListResource.class);
+        cfg.register(new AbstractBinder() {
+            @Override
+            protected void configure() {
+                bind(request).to(HttpServletRequest.class);
+                bind(service).to(DoListService.class);
+            }
+        });
+        return cfg;
+    }
+
     @After
     public void afterTest() {
         service.reset();
@@ -85,8 +96,7 @@ public class DoListResourceTest {
 
     @Test
     public void testGet() throws Exception {
-        Collection<Todo> todos = resources.getJerseyTest()
-                .target("/dolist")
+        Collection<Todo> todos = target("/dolist")
                 .request()
                 .get(new GenericType<Collection<Todo>>() {
                 });
@@ -98,8 +108,7 @@ public class DoListResourceTest {
 
     @Test
     public void testGet1() throws Exception {
-        Todo todo = resources.getJerseyTest()
-                .target("/dolist/1")
+        Todo todo = target("/dolist/1")
                 .request()
                 .get(Todo.class);
         assertEquals(todo1, todo);
@@ -110,8 +119,7 @@ public class DoListResourceTest {
         Todo newTodo = new Todo();
         String testDetails = "New Test Todo";
         newTodo.setDetails(testDetails);
-        Response response = resources.getJerseyTest()
-                .target("/dolist")
+        Response response = target("/dolist")
                 .request()
                 .header(HttpHeaders.AUTHORIZATION, "Basic dGVzdHVzZXI6dGVzdHVzZXI=") //Base64 testuser:testuser
                 .post(Entity.json(newTodo));
@@ -126,8 +134,7 @@ public class DoListResourceTest {
     public void testUpdate() throws Exception {
         String testDetails = "Updated Test Todo";
         todo1.setDetails(testDetails);
-        Response response = resources.getJerseyTest()
-                .target("/dolist/1")
+        Response response = target("/dolist/1")
                 .request()
                 .put(Entity.json(todo1));
         Todo savedTodo = response.readEntity(Todo.class);
@@ -137,4 +144,5 @@ public class DoListResourceTest {
         assertNotNull(savedTodo.getUser());
 
     }
+
 }

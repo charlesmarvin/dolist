@@ -2,6 +2,8 @@ package com.cm.dolist;
 
 import com.codahale.metrics.annotation.Timed;
 
+import javax.inject.Inject;
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -12,7 +14,6 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.SecurityContext;
 import java.time.LocalDateTime;
 import java.util.Collection;
 
@@ -35,7 +36,11 @@ import java.util.Collection;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class DoListResource {
-    private final DoListService service;
+    @Inject
+    private DoListService service;
+
+    public DoListResource() {
+    }
 
     public DoListResource(DoListService service) {
         this.service = service;
@@ -56,9 +61,9 @@ public class DoListResource {
 
     @POST
     @Timed
-    public Todo create(@Context SecurityContext principal, Todo todo) {
+    public Todo create(@Context HttpServletRequest request, Todo todo) {
         todo.setCreatedOn(LocalDateTime.now());
-        todo.setUser(principal.getUserPrincipal().getName());
+        todo.setUser(request.getRemoteUser());
         todo.setDone(false);
         return service.save(todo);
     }
